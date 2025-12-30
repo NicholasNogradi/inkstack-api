@@ -33,19 +33,32 @@ const envSchema = z.object({
   PORT: z.coerce.number().positive().default(3000),
 
   // Expect a Postgres connection string. .startsWith enforces the scheme prefix.
-  // DATABASE_URL: z.string().startsWith('postgresql://'),
+  DATABASE_URL: z.string().startsWith('postgresql://'),
 
   // JWT secret must be long enough for security. Using .min(32) is a practical
   // safeguard against weak secrets.
-  // JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters long'),
+  JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters long'),
 
   // How long JWTs should live; left as a string so values like '7d' are allowed.
   JWT_EXPIRATION: z.string().default('7d'),
+  REFRESH_TOKEN_SECRET: z.string().min(32).optional(),
+  REFRESH_TOKEN_EXPIRES_IN: z.string().default('30d'),
+
 
   // Bcrypt salt rounds are numeric; coerce from string if necessary and limit
   // to a sensible range to avoid accidental extremes. Default to 12.
   BCRYPT_SALT_ROUNDS: z.coerce.number().min(10).max(20).default(12),
 
+  CORS_ORIGIN: z
+    .string()
+    .or(z.array(z.string()))
+    .transform((val) => {
+      if (typeof val === 'string') {
+        return val.split(',').map((origin) => origin.trim())
+      }
+      return val
+    })
+    .default([]),
 });
 
 // TypeScript type inferred from the Zod schema — useful for strongly-typed code
