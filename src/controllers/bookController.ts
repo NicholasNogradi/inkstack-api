@@ -1,27 +1,48 @@
 import type { Request, Response } from "express";
 import { db } from "../db/connection.ts";
-import { booksTable } from "../db/schema.ts";
+import { bookCategoriesTable, booksTable, categoriesTable } from "../db/schema.ts";
 import {  asc, eq, sql } from "drizzle-orm";
 
 
-
+// Fix Limit and offset
 export const getAllBooks = async (req: Request, res: Response) => {
     try {
-        
+        const limit = parseInt(req.query.limit as string) || 10;
+        const offset = parseInt(req.query.offset as string) || 0;
+
+        if(limit < 0 || limit > 100) {
+            return res.status(400).json({ error: 'Limit must be between 1 and 100' })
+        }
+
+        if (offset < 0) {
+            return res.status(400).json({ error: 'Offset must be 0 or greater' });
+        }
 
         const books = await db.query.booksTable.findMany({
-            limit: 10,
-            offset: 0,
-            orderBy: [asc(booksTable.id)]
+            limit: limit,
+            offset: offset,
+            orderBy: [asc(booksTable.id)],
+            with: {
+                categories: {
+                    with: {
+                        category: true 
+                    }
+                }
+            }
         })
 
         if(!books || books.length === 0) {
             return res.status(204).json({ error: 'No content'})
         }
 
+        const booksWithCategories = books.map(book => ({
+            ...book,
+            categories: book.categories.map(bc => bc.category)
+        }))
+
         res.json({
             message: 'Found books',
-            books
+            books: booksWithCategories
         })
     } catch (error) {
         console.error('Search error:', error)
@@ -34,21 +55,95 @@ export const getBookById = async (req: Request, res: Response) => {
         const { id } = req.params
 
         const book = await db.query.booksTable.findFirst({
-            where: eq(booksTable.id, id)
+            where: eq(booksTable.id, id),
+            with: {
+                categories: {
+                    with: {
+                        category: true
+                    }
+                }
+            }
         })
 
         if(!book) {
             return res.status(404).json({ error: 'Book not found'})
         }
+        // Transform to include categories directly
+        const bookWithCategories = {
+            ...book,
+            categories: book.categories.map(bc => bc.category)
+        };
 
         res.json({
-            book: book}
-        )
+            book: bookWithCategories
+        })
     } catch (error) {
         console.error('Get book error:', error);
         res.status(500).json({error: 'Failed to fetch book'})
     }
 }
+
+export const getBooksByCategory = async (req: Request, res: Response) => {
+    try {
+        const { categoryId } = req.params;
+
+        const bookCategories = await db.query.bookCategoriesTable.findMany({
+            where: eq(bookCategoriesTable.categoryId, categoryId),
+            with: {
+                book: true
+            }
+        })
+
+        if(!bookCategories || bookCategories.length === 0) {
+            return res.status(404).json({ error: 'No books found in this category'})
+        }
+
+        const books = bookCategories.map(bc => bc.book);
+
+        res.json({
+            message: 'Found books in category',
+            books
+        })
+    } catch (error) {
+        
+    }
+}
+
+// Get books by category name
+export const getBooksByCategoryName = async (req: Request, res: Response) => {
+    try {
+        const { categoryName } = req.params;
+
+        
+
+        // First find the category
+        const category = await db.query.categoriesTable.findFirst({
+            where: eq(categoriesTable.name, categoryName)
+        });
+
+        if (!category) {
+            return res.status(404).json({ error: 'Category not found' });
+        }
+
+        // Then find books in that category
+        const bookCategories = await db.query.bookCategoriesTable.findMany({
+            where: eq(bookCategoriesTable.categoryId, category.id),
+            with: {
+                book: true
+            }
+        });
+
+        const books = bookCategories.map(bc => bc.book);
+
+        res.json({
+            message: `Found books in category: ${categoryName}`,
+            books
+        });
+    } catch (error) {
+        console.error('Get books by category name error:', error);
+        res.status(500).json({ error: 'Failed to fetch books' });
+    }
+};
 
 export const updateBook = async ( req: Request, res: Response) => {
     try {
@@ -109,7 +204,7 @@ export const updateBookStock = async (ISBN: string, stockToAdd: number) => {
 
 export const createBook = async (req: Request, res: Response) => {
     try {
-        const { title, author, ISBN, description, coverImage, stock } = req.body;
+        const { title, author, ISBN, description, coverImage, stock, categoryIds } = req.body;
 
         // Validate that the required fields are present
         if(!title || !author || !ISBN) {
@@ -118,7 +213,7 @@ export const createBook = async (req: Request, res: Response) => {
 
         // Query booksTable to check if book exists 
         const existingBook = await db.query.booksTable.findFirst({
-            where: (eq(booksTable.ISBN, ISBN))
+            where: eq(booksTable.ISBN, ISBN)
         })
         
         // If book exists update book stock using helper function
@@ -156,10 +251,36 @@ export const createBook = async (req: Request, res: Response) => {
                 stock: booksTable.stock
             })
 
+            if(categoryIds && categoryIds.length > 0) {
+                const bookCategoryValues = categoryIds.map((categoryId: string) => ({
+                    bookId: newBook.id,
+                    categoryId: categoryId
+                }));
+
+                await db
+                    .insert(bookCategoriesTable)
+                    .values(bookCategoryValues);
+            }
+
+            // Fetch the book with categories
+            const bookWithCategories = await db.query.booksTable.findFirst({
+                where: eq(booksTable.id, newBook.id),
+                with: {
+                    categories: {
+                        with: {
+                            category: true
+                        }
+                    }
+                }
+            });
+
             res.status(201).json({
                 message: "Book created successfully",
-                book: newBook
-            })
+                book: {
+                    ...bookWithCategories,
+                    categories: bookWithCategories?.categories.map(bc => bc.category)
+                }
+            });
         
     } catch (error) {
         console.error('Creation error:', error)
