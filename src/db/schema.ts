@@ -19,6 +19,11 @@ export const booksTable = pgTable('book_table', {
     ISBN: varchar('isbn', {length: 13}).notNull().unique(),
     description: text('description'),
     coverImage: text('cover_image'),
+    sales: integer('sales').notNull().default(0),
+    stock: integer('stock').notNull().default(0),
+    availability: boolean('availability').notNull().default(true), // Manual override
+    createdAt: timestamp('created_at').defaultNow(),
+    updatedAt: timestamp('updated_at').defaultNow(),
 });
 
 export const categoriesTable = pgTable('categories_table', {

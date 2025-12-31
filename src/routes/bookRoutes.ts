@@ -1,14 +1,15 @@
 import { Router } from 'express';
-import { getAllBooks, getBookById } from '../controllers/bookController.ts';
+import { getAllBooks, getBookById, updateBook, createBook } from '../controllers/bookController.ts';
 
 const router  = Router();
 
 router.get('/', getAllBooks)
 
-router.post('/', (req, res) => {
-    res.status(201).json({message: "Book created"})
-})
+router.post('/', createBook)
 
 router.get('/:id', getBookById)
+
+router.put('/:id', updateBook)
+router.patch('/:id', updateBook)
 
 export default router
