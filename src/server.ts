@@ -4,7 +4,7 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import { env, isDev, isTesting} from '../env.ts'
 import bookRoutes from './routes/bookRoutes.ts'
-import authRoutes from './routes/authroutes.ts'
+import authRoutes from './routes/authRoutes.ts'
 
 
 const app = express();
