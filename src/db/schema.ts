@@ -80,4 +80,5 @@ export const favoritesRelations = relations(favoritesTable, ({ one }) => ({
         fields: [favoritesTable.bookId],
         references: [booksTable.id],
     }),
+    
 }));

@@ -7,8 +7,11 @@ import {
     getBooksByCategory, 
     getBooksByCategoryName 
 } from '../controllers/bookController.ts';
+import { authenticateToken } from '../middleware/auth.ts';
 
 const router  = Router();
+
+router.use(authenticateToken)
 
 router.get('/', getAllBooks)
 router.get('/:id', getBookById)
