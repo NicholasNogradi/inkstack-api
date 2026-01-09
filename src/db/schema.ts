@@ -13,17 +13,24 @@ export const usersTable = pgTable('user_table', {
 });
 
 export const booksTable = pgTable('book_table', {
-    id: uuid('id').primaryKey().defaultRandom(),
-    title: varchar('title', { length: 255}).notNull(),
-    author: varchar('author', {length: 100}).notNull(),
-    ISBN: varchar('isbn', {length: 13}).notNull().unique(),
+     id: uuid('id').primaryKey().defaultRandom(),
+    title: varchar('title', { length: 500}).notNull(),  // Increase length for longer titles
+    author: varchar('author', {length: 255}).notNull(),  // Increase length
+    ISBN: varchar('isbn', {length: 20}),  // Make optional (nullable) - allow empty ISBN
     description: text('description'),
     coverImage: text('cover_image'),
+    pageCount: integer('page_count').default(0),  // Add this field
+    averageRating: integer('average_rating').default(0),  // Add this field
+    ratingsCount: integer('ratings_count').default(0),  // Add this field
+    isEbook: boolean('is_ebook').default(false),  // Add this field
+    price: integer('price').default(0),  // Price in cents to avoid decimals
+    saleability: varchar('saleability', { length: 50 }).default('UNKNOWN'),  // Add this field
+    country: varchar('country', { length: 2 }).default('US'),  // Add this field (ISO country code)
     sales: integer('sales').notNull().default(0),
     stock: integer('stock').notNull().default(0),
-    availability: boolean('availability').notNull().default(true), // Manual override
-    createdAt: timestamp('created_at').defaultNow(),
-    updatedAt: timestamp('updated_at').defaultNow(),
+    availability: boolean('availability').notNull().default(true),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
 
 export const categoriesTable = pgTable('categories_table', {

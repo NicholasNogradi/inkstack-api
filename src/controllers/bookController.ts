@@ -1,14 +1,16 @@
 import type { Request, Response } from "express";
 import { db } from "../db/connection.ts";
 import { bookCategoriesTable, booksTable, categoriesTable } from "../db/schema.ts";
-import {  asc, eq, sql } from "drizzle-orm";
+import {  asc, eq, sql, like, or } from "drizzle-orm";
 
 
 // Fix Limit and offset
 export const getAllBooks = async (req: Request, res: Response) => {
     try {
-        const limit = parseInt(req.query.limit as string) || 10;
+        const limit = parseInt(req.query.limit as string);
         const offset = parseInt(req.query.offset as string) || 0;
+        const author = req.query.author as string;
+        const title = req.query.title as string;
 
         if(limit < 0 || limit > 100) {
             return res.status(400).json({ error: 'Limit must be between 1 and 100' })
@@ -18,10 +20,22 @@ export const getAllBooks = async (req: Request, res: Response) => {
             return res.status(400).json({ error: 'Offset must be 0 or greater' });
         }
 
+        // Build where conditions dynamically
+        const conditions = [];
+        
+        if (title) {
+            conditions.push(like(booksTable.title, `%${title}%`));
+        }
+        
+        if (author) {
+            conditions.push(like(booksTable.author, `%${author}%`));
+        }
+
         const books = await db.query.booksTable.findMany({
             limit: limit,
             offset: offset,
             orderBy: [asc(booksTable.id)],
+            where: conditions.length > 0 ? or(...conditions) : undefined,
             with: {
                 categories: {
                     with: {
@@ -42,7 +56,12 @@ export const getAllBooks = async (req: Request, res: Response) => {
 
         res.json({
             message: 'Found books',
-            books: booksWithCategories
+            books: booksWithCategories,
+            pagination: {
+                limit,
+                offset,
+                count: books.length
+            }
         })
     } catch (error) {
         console.error('Search error:', error)
