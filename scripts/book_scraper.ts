@@ -2,6 +2,25 @@ import axios from 'axios'
 import * as cheerio from 'cheerio'
 import { promises as fs } from 'fs';
 
+const categories = [
+  { id: 'all', name: 'All Categories'},
+  { id: 'sci-fi', name: 'Science Fiction' },
+  { id: 'fantasy', name: 'Fantasy' },
+  { id: 'mystery', name: 'Mystery' },
+  { id: 'thriller', name: 'Thriller' },
+  { id: 'romance', name: 'Romance' },
+  { id: 'historical', name: 'Historical Fiction' },
+  { id: 'biography', name: 'Biography' },
+  { id: 'self-help', name: 'Self-Help' },
+  { id: 'business', name: 'Business' },
+  { id: 'psychology', name: 'Psychology' },
+  { id: 'philosophy', name: 'Philosophy' },
+  { id: 'poetry', name: 'Poetry' },
+  { id: 'horror', name: 'Horror' },
+  { id: 'adventure', name: 'Adventure' },
+  { id: 'dystopian', name: 'Dystopian' },
+];
+
 class BookScraper {
   constructor() {
     this.books = [];
@@ -32,20 +51,34 @@ class BookScraper {
   // Scrape from Google Books API
   async scrapeGoogleBooks(query) {
     try {
-      const url = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&maxResults=20`;
+      const url = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&maxResults=40`;
       const response = await axios.get(url);
+      console.log("Google Books API response data:", response.data);
       const items = response.data.items || [];
+      // console.log("items:", items);
 
       for (const item of items) {
         const info = item.volumeInfo || {};
+        const salesInfo = item.saleInfo || {};
         const identifiers = info.industryIdentifiers || [];
         const isbn = identifiers.find(id => id.type === 'ISBN_13' || id.type === 'ISBN_10');
-
+        
         this.books.push({
           title: info.title || '',
           author: info.authors ? info.authors.join(', ') : '',
           ISBN: isbn ? isbn.identifier : '',
-          description: info.description || ''
+          description: info.description || '',
+          imageLinks: info.imageLinks ? info.imageLinks.thumbnail || {} : {},
+          pageCount: info.pageCount || 0,
+          categories: info.categories ? info.categories.join(', ') : '',
+          averageRating: info.averageRating || 0,
+          ratingsCount: info.ratingsCount || 0,
+          salesInfo: {
+            country: salesInfo.country || '',
+            saleability: salesInfo.saleability || '',
+            isEbook: salesInfo.isEbook || false,
+            price: salesInfo.listPrice ? salesInfo.listPrice.amount || 0 : 0,
+          }
         });
       }
       
@@ -87,36 +120,55 @@ class BookScraper {
 //   }
 
   // Save books to JSON file
-  async saveToJSON(filename = 'books.json') {
-    try {
-      const jsonData = JSON.stringify(this.books, null, 2);
+  async saveToJSON(filename = './scripts/books.json') {
+     try {
+      let existingBooks = [];
+      
+      // Try to read existing file
+      try {
+        const fileContent = await fs.readFile(filename, 'utf8');
+        existingBooks = JSON.parse(fileContent);
+      } catch (err) {
+        // File doesn't exist or is invalid JSON, start with empty array
+        existingBooks = [];
+      }
+      
+      // Append new books to existing array
+      const allBooks = [...existingBooks, ...this.books];
+      
+      const jsonData = JSON.stringify(allBooks, null, 3);
       await fs.writeFile(filename, jsonData, 'utf8');
-      console.log(`\n✓ Saved ${this.books.length} books to ${filename}`);
+      console.log(`\n✓ Saved ${this.books.length} new books to ${filename} (Total: ${allBooks.length})`);
     } catch (err) {
       console.error(`✗ Error saving to JSON: ${err.message}`);
     }
   }
 
   // Main scraping function
-  async scrapeAll(query) {
-    console.log(`\nScraping books for query: "${query}"\n`);
+  async scrapeAll() {
     
-    // await this.scrapeOpenLibrary(query);
-    await this.scrapeGoogleBooks(query);
-    // await this.scrapeGoodreads(query);
+    for (const category of categories) {
+      const categoryQuery = category.name;
+      console.log(`\n--- Scraping Category: ${category.name} ---`);
+      
+      // await this.scrapeOpenLibrary(categoryQuery);
+      await this.scrapeGoogleBooks(categoryQuery);
+      // await this.scrapeGoodreads(categoryQuery);
+    }
+    
     
     await this.saveToJSON();
     
     console.log('\n--- Sample Books ---');
-    console.log(JSON.stringify(this.books.slice(0, 3), null, 2));
+    console.log(JSON.stringify(this.books.slice(0, 4), null, 2));
   }
 }
 
 // Usage
 const scraper = new BookScraper();
-const searchQuery = process.argv[2] || 'javascript programming';
 
-scraper.scrapeAll(searchQuery).catch(err => {
+
+scraper.scrapeAll().catch(err => {
   console.error('Fatal error:', err);
   process.exit(1);
 });
